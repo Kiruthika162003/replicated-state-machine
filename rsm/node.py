@@ -75,6 +75,7 @@ class Node:
     members: tuple[str, ...]
     seed: int = 0
     pre_vote: bool = False
+    commit_any_term: bool = False
 
     term: int = 1
     voted_for: str | None = None
@@ -481,12 +482,17 @@ class Node:
         promised anything about it: they accepted it from a leader that has since been deposed.
         Only an entry from the current term carries the guarantee, and committing one commits
         everything below it.
+
+        The commit_any_term flag drops the second condition. It is not a configuration anyone
+        should turn on: it exists so that replicate.py can run the same scenario with the rule
+        and without it and show the committed entry being overwritten, which is a stronger
+        argument than the paragraph above.
         """
         if self.role != LEADER:
             return
         self.match_index[self.name] = self.log.last_index
         for index in range(self.log.last_index, self.commit_index, -1):
-            if self.log.term_at(index) != self.term:
+            if not self.commit_any_term and self.log.term_at(index) != self.term:
                 continue
             holders = sum(
                 1 for one in self.members if self.match_index.get(one, NO_INDEX) >= index

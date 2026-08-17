@@ -22,10 +22,10 @@ from rsm.verify.history import History, Operation
 # two constraints are what stop it being every permutation, and the measurement below is how
 # much they actually prune.
 #
-# It is still exponential in the width of the concurrency, which is why the budget exists and why
-# the checker reports running out rather than reporting success. A checker that returned true
-# when it gave up would pass every history it could not afford to check, which is exactly the
-# histories a bug hides in.
+# It can still be exponential, which is why the budget exists and why the checker reports
+# running out rather than reporting success. A checker that returned true when it gave up would
+# pass every history it could not afford to check, which is exactly where a bug hides. What
+# makes a history expensive is not its width, which the measurements below correct.
 
 # How many states the search will visit before giving up. Reaching it is not a pass and not a
 # failure, it is a third answer, and the caller has to be told which one it got.
@@ -98,7 +98,7 @@ def _minimal(history: History) -> list[Operation]:
     return sorted(history.operations, key=lambda one: (one.called_at, one.client))
 
 
-def _allowed(operation: Operation, done: list[Operation], remaining: list[Operation]) -> bool:
+def _allowed(operation: Operation, remaining: list[Operation]) -> bool:
     """Whether this operation may be the next to take effect.
 
     It may not if something else has already returned before it was called: that operation
@@ -152,7 +152,7 @@ def check(history: History, budget: int = BUDGET) -> Verdict:
             return False
         search.seen.add(position)
         for one in list(remaining):
-            if not _allowed(one, list(done), remaining):
+            if not _allowed(one, remaining):
                 continue
             attempt = Machine(state=dict(machine.state))
             try:

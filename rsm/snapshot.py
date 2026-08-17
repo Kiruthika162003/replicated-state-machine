@@ -549,6 +549,7 @@ def the_threshold_trades_log_size_against_how_far_a_follower_may_lag() -> dict:
 def summarise() -> dict:
     """The findings in one mapping."""
     boundary = compacting_keeps_the_term_at_the_boundary()
+    far_behind = a_leader_sends_a_snapshot_when_the_entries_are_gone()
     return {
         "compact_after": COMPACT_AFTER,
         "the_term_survives_the_entry": boundary["but_the_term_survived"],
@@ -562,9 +563,7 @@ def summarise() -> dict:
         "a_restart_applies_nothing": a_restart_from_a_snapshot_skips_the_replay()[
             "it_applied_nothing"
         ],
-        "a_far_behind_follower_gets_state": a_leader_sends_a_snapshot_when_the_entries_are_gone()[
-            "it_sent_a_snapshot"
-        ],
+        "a_far_behind_follower_gets_state": far_behind["it_sent_a_snapshot"],
         "an_old_snapshot_is_ignored": an_older_snapshot_is_ignored()["it_was_ignored"],
         "a_cluster_survives_compaction": a_cluster_compacts_and_keeps_serving()[
             "and_the_nodes_agree"

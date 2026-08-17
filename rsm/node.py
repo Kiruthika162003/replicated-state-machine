@@ -52,6 +52,12 @@ ROLES = (FOLLOWER, CANDIDATE, LEADER)
 MIN_ELECTION_TIMEOUT = 10
 MAX_ELECTION_TIMEOUT = 20
 
+# Each node's generator is seeded from a string rather than from a hash of one. Python
+# randomises string hashes per process, so seeding with hash((seed, name)) produced a different
+# cluster in every interpreter while looking perfectly reproducible inside one. Two runs of the
+# same measurement in separate processes disagreed, which is how it was found. Seeding a Random
+# with a string goes through a digest instead, and that is stable everywhere.
+
 # Ticks between a leader's heartbeats. Well below the minimum election timeout, because a leader
 # that heartbeats slower than its followers time out is a leader that deposes itself.
 HEARTBEAT_INTERVAL = 3
@@ -93,7 +99,7 @@ class Node:
             raise ConfigError(f"{self.name} is not in {list(self.members)}")
         if len(set(self.members)) != len(self.members):
             raise ConfigError(f"{list(self.members)} has a repeated name")
-        self.random = random.Random(hash((self.seed, self.name)) & 0xFFFFFFFF)
+        self.random = random.Random(f"{self.seed}:{self.name}")
         self.reset_election_timer()
 
     @property
@@ -967,6 +973,40 @@ def applying_never_runs_ahead_of_committing() -> dict:
         "and_raising_the_commit_index_applies_the_rest": [one.index for one in rest] == [4, 5],
         "never_past_the_commit_index": node.last_applied == node.commit_index,
         "the_state_holds_the_last_write": node.state["k"] == 5,
+    }
+
+
+def the_election_timer_is_seeded_by_a_string_not_a_hash() -> dict:
+    """A node's timeouts have to be the same in every process, and a hash of a name is not.
+
+    Found by a summary that disagreed with the measurement it was summarising. Both called the
+    same function with the same seed and got different answers, because they ran in different
+    interpreters and Python randomises the hash of a string per process. Inside one process the
+    old version looked perfectly reproducible, which is the worst way for this to fail.
+
+    Seeding a generator with the string itself goes through a digest rather than the process
+    hash, so the deadlines below are fixed constants and a failing seed stays a failing seed
+    across a restart, a machine and a rerun tomorrow.
+    """
+    made = [Node(name=one, members=("a", "b", "c"), seed=0) for one in ("a", "b", "c")]
+    spans = [one.election_deadline for one in made]
+    again = [
+        Node(name=one, members=("a", "b", "c"), seed=0).election_deadline
+        for one in ("a", "b", "c")
+    ]
+    other_seed = [
+        Node(name=one, members=("a", "b", "c"), seed=1).election_deadline
+        for one in ("a", "b", "c")
+    ]
+    return {
+        "deadlines": spans,
+        "they_repeat_in_this_process": spans == again,
+        "they_are_these_exact_numbers": spans == [11, 18, 15],
+        "a_different_seed_differs": other_seed != spans,
+        "every_deadline_is_in_range": all(
+            MIN_ELECTION_TIMEOUT <= one <= MAX_ELECTION_TIMEOUT for one in spans
+        ),
+        "and_the_nodes_do_not_all_agree": len(set(spans)) > 1,
     }
 
 

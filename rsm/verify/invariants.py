@@ -207,11 +207,17 @@ def _prefixes_agree(cluster: Cluster, left: str, right: str) -> list[Breach]:
 
 
 def leader_completeness(cluster: Cluster) -> list[Breach]:
-    """Every committed entry is present in the log of every later leader.
+    """An entry committed in a term is present in the log of every leader of a later term.
 
-    The property that the election restriction exists to provide, and the one that the commit
-    rule in node.py exists to protect. Checked against the highest commit index any node ever
-    reported, because an entry committed on one node is committed.
+    The property the election restriction exists to provide, and the one the commit rule in
+    node.py exists to protect.
+
+    The term qualifier is the whole of it, and leaving it out is what the first version of this
+    function did. A generated schedule then reported a breach: a node partitioned off while
+    still believing it led term three did not hold an entry committed in term four, and the
+    check called that a violation. It is not one. The property says leaders of higher terms, and
+    a stale leader on the wrong side of a partition is by definition not one of those. The bug
+    was in the checker, and it took a fuzzer thirty schedules to find it.
     """
     out = []
     committed: dict[int, Entry] = {}
@@ -226,14 +232,17 @@ def leader_completeness(cluster: Cluster) -> list[Breach]:
         if node.role != LEADER:
             continue
         for index, entry in committed.items():
-            if not node.log.holds(index):
+            if node.term <= entry.term:
                 continue
-            if node.log.at(index).command != entry.command:
+            if not node.log.holds(index) or node.log.at(index).command != entry.command:
                 out.append(
                     Breach(
                         property=LEADER_COMPLETENESS,
                         tick=cluster.now,
-                        detail=f"leader {name} lacks committed index {index}",
+                        detail=(
+                            f"leader {name} at term {node.term} lacks index {index} "
+                            f"committed in term {entry.term}"
+                        ),
                     )
                 )
     return out

@@ -78,14 +78,17 @@ class Cluster:
         seed: int = 0,
         conditions: Conditions | None = None,
         check: bool = True,
+        pre_vote: bool = False,
     ) -> None:
         if size < 1:
             raise ConfigError(f"{size} is not a cluster size")
         self.members = tuple(f"n{one}" for one in range(size))
         self.seed = seed
+        self.pre_vote = pre_vote
         self.net = Network(members=list(self.members), seed=seed, conditions=conditions)
         self.nodes = {
-            one: Node(name=one, members=self.members, seed=seed) for one in self.members
+            one: Node(name=one, members=self.members, seed=seed, pre_vote=pre_vote)
+            for one in self.members
         }
         self.now = 0
         self.down: set[str] = set()
@@ -190,7 +193,12 @@ class Cluster:
         if name not in self.down:
             raise ConfigError(f"{name} is not down")
         old = self.nodes[name]
-        fresh = Node(name=name, members=self.members, seed=self.seed + self.now)
+        fresh = Node(
+            name=name,
+            members=self.members,
+            seed=self.seed + self.now,
+            pre_vote=self.pre_vote,
+        )
         fresh.term = old.term
         fresh.voted_for = old.voted_for
         fresh.log = Log(

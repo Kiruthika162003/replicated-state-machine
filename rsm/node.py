@@ -74,6 +74,7 @@ class Node:
     name: str
     members: tuple[str, ...]
     seed: int = 0
+    pre_vote: bool = False
 
     term: int = 1
     voted_for: str | None = None
@@ -87,6 +88,7 @@ class Node:
     next_index: dict[str, int] = field(default_factory=dict)
     match_index: dict[str, int] = field(default_factory=dict)
     votes: set[str] = field(default_factory=set)
+    pre_votes: set[str] = field(default_factory=set)
 
     now: int = 0
     election_deadline: int = 0
@@ -134,7 +136,38 @@ class Node:
         self.role = FOLLOWER
         self.leader = leader
         self.votes = set()
+        self.pre_votes = set()
         self.reset_election_timer()
+
+    def stand(self) -> list[Message]:
+        """Begin an election, with a pre vote round first if this node is configured for one."""
+        if self.pre_vote and len(self.members) > 1:
+            return self.become_pre_candidate()
+        return self.become_candidate()
+
+    def become_pre_candidate(self) -> list[Message]:
+        """Ask whether an election would succeed, without starting one.
+
+        The request carries the term this node would use and the receiver does not adopt it,
+        which is the entire mechanism. A node whose log is behind is refused here and never
+        raises anyone's term, so the cluster it was partitioned from carries on undisturbed.
+
+        Nothing about this node changes yet. It stays a follower with its old term, so if the
+        pre vote fails it has cost one round trip and left no trace.
+        """
+        self.pre_votes = {self.name}
+        self.reset_election_timer()
+        return [
+            RequestVote(
+                sender=self.name,
+                recipient=one,
+                term=self.term + 1,
+                last_index=self.log.last_index,
+                last_term=self.log.last_term,
+                pre_vote=True,
+            )
+            for one in self.peers
+        ]
 
     def become_candidate(self) -> list[Message]:
         """Stand for election: bump the term, vote for yourself, ask everyone else."""
@@ -143,6 +176,7 @@ class Node:
         self.voted_for = self.name
         self.leader = None
         self.votes = {self.name}
+        self.pre_votes = set()
         self.reset_election_timer()
         if len(self.members) == 1:
             return self.become_leader()
@@ -239,7 +273,7 @@ class Node:
                 return self.replicate()
             return []
         if now >= self.election_deadline:
-            return self.become_candidate()
+            return self.stand()
         return []
 
     def step(self, message: Message) -> list[Message]:
@@ -250,8 +284,12 @@ class Node:
         before the message is looked at, and a message from an earlier term is refused with this
         node's term attached so the sender can catch up.
         """
+        asking = isinstance(message, RequestVote | Vote) and message.pre_vote
         state = term_check(self.term, message)
-        if state == AHEAD:
+        if asking:
+            if state == STALE:
+                return self._refuse(message)
+        elif state == AHEAD:
             self.become_follower(message.term)
         elif state == STALE:
             return self._refuse(message)
@@ -288,9 +326,25 @@ class Node:
         return []
 
     def _on_request_vote(self, message: RequestVote) -> list[Message]:
-        """Grant a vote if none is spent this term and the candidate's log is up to date."""
-        free = self.voted_for in (None, message.sender)
+        """Grant a vote if none is spent this term and the candidate's log is up to date.
+
+        A pre vote is answered on the log alone and records nothing. It cannot spend this node's
+        vote, because the election it asks about has not started and may never start, and a node
+        that spent its vote on a question would be unable to answer the real request that
+        follows.
+        """
         current = self.log.is_up_to_date(message.last_index, message.last_term)
+        if message.pre_vote:
+            return [
+                Vote(
+                    sender=self.name,
+                    recipient=message.sender,
+                    term=self.term,
+                    granted=current and message.term > self.term,
+                    pre_vote=True,
+                )
+            ]
+        free = self.voted_for in (None, message.sender)
         granted = free and current
         if granted:
             self.voted_for = message.sender
@@ -306,11 +360,22 @@ class Node:
 
     def _on_vote(self, message: Vote) -> list[Message]:
         """Count a vote, and take office once a majority has answered."""
+        if message.pre_vote:
+            return self._on_pre_vote(message)
         if self.role != CANDIDATE or not message.granted:
             return []
         self.votes.add(message.sender)
         if len(self.votes) >= self.quorum:
             return self.become_leader()
+        return []
+
+    def _on_pre_vote(self, message: Vote) -> list[Message]:
+        """Count a pre vote, and start the real election once a majority says it would work."""
+        if self.role != FOLLOWER or not message.granted or not self.pre_votes:
+            return []
+        self.pre_votes.add(message.sender)
+        if len(self.pre_votes) >= self.quorum:
+            return self.become_candidate()
         return []
 
     def _on_append(self, message: Append) -> list[Message]:

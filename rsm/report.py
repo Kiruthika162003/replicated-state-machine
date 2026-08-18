@@ -55,6 +55,7 @@ MODULES = (
     "rsm.watch",
     "rsm.rebalance",
     "rsm.idle",
+    "rsm.chart",
     "rsm.verify.invariants",
     "rsm.verify.history",
     "rsm.verify.linearize",

@@ -54,6 +54,7 @@ MODULES = (
     "rsm.expire",
     "rsm.watch",
     "rsm.rebalance",
+    "rsm.idle",
     "rsm.verify.invariants",
     "rsm.verify.history",
     "rsm.verify.linearize",

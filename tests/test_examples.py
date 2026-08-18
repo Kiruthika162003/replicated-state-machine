@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import importlib
+import io
 import pkgutil
+from contextlib import redirect_stdout
 
 import pytest
 
 import examples
+import rsm
 from examples.common import bar, pairs, rule, table
 
 SCRIPTS = sorted(
@@ -116,3 +119,51 @@ def test_a_bar_clamps_above_one():
 
 def test_a_bar_clamps_below_zero():
     assert bar(-1.0, 10) == "." * 10
+
+
+CHEAP = (
+    "check_a_history",
+    "grow_the_cluster",
+    "elect_a_leader",
+    "survive_a_partition",
+    "tour",
+)
+
+
+@pytest.mark.parametrize("name", CHEAP)
+def test_a_cheap_example_runs_end_to_end(name):
+    made = importlib.import_module(f"examples.{name}")
+    caught = io.StringIO()
+    with redirect_stdout(caught):
+        made.main()
+    assert caught.getvalue()
+
+
+@pytest.mark.parametrize("name", CHEAP)
+def test_a_cheap_example_prints_a_rule(name):
+    made = importlib.import_module(f"examples.{name}")
+    caught = io.StringIO()
+    with redirect_stdout(caught):
+        made.main()
+    assert "--" in caught.getvalue()
+
+
+@pytest.mark.parametrize("name", CHEAP)
+def test_a_cheap_example_prints_several_lines(name):
+    made = importlib.import_module(f"examples.{name}")
+    caught = io.StringIO()
+    with redirect_stdout(caught):
+        made.main()
+    assert len(caught.getvalue().splitlines()) > 10
+
+
+def test_the_cheap_examples_are_a_subset():
+    assert set(CHEAP) <= set(SCRIPTS)
+
+
+def test_every_example_is_named_as_a_phrase():
+    assert sum(1 for one in SCRIPTS if "_" in one) >= len(SCRIPTS) - 1
+
+
+def test_no_example_shares_a_name_with_a_module():
+    assert not (set(SCRIPTS) & set(dir(rsm)))

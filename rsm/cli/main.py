@@ -6,14 +6,30 @@ import json
 import sys
 from collections.abc import Sequence
 
-from rsm import client, election, log, machine, membership, net, node, replicate, rpc, snapshot
-from rsm import cluster as cluster_module
+from rsm import (
+    backpressure,
+    keyspace,
+    lease,
+    observe,
+    partition,
+    quorum,
+    recovery,
+    repair,
+    report,
+    timing,
+)
 from rsm.cluster import Cluster
 from rsm.errors import NoLeader, ReplicationError
-from rsm.eval import regression, scaling, workload
+from rsm.eval import mix, regression, scaling, tuning, workload
 from rsm.machine import SET, Command
 from rsm.net import Conditions
-from rsm.verify import differential, faults, history, invariants, linearize, reference
+from rsm.verify import (
+    coverage,
+    differential,
+    explore,
+    fuzz,
+    invariants,
+)
 from rsm.verify.faults import random_schedule
 from rsm.verify.faults import run as run_schedule
 
@@ -145,34 +161,94 @@ def run_invariants(args: argparse.Namespace) -> object:
 
 
 def run_measure(_args: argparse.Namespace | None = None) -> object:
-    """Every module's summary, which is the package's claim about itself."""
-    modules = {
-        "log": log,
-        "rpc": rpc,
-        "net": net,
-        "node": node,
-        "cluster": cluster_module,
-        "election": election,
-        "replicate": replicate,
-        "machine": machine,
-        "client": client,
-        "snapshot": snapshot,
-        "membership": membership,
-        "verify/history": history,
-        "verify/linearize": linearize,
-        "verify/invariants": invariants,
-        "verify/faults": faults,
-        "verify/reference": reference,
-        "verify/differential": differential,
-        "eval/workload": workload,
-        "eval/regression": regression,
-        "eval/scaling": scaling,
-    }
+    """Every module's summary, which is the package's claim about itself.
+
+    Collected through rsm.report rather than from a list kept here. The list was written by
+    hand and had fallen twenty eight modules behind by the time the package stopped growing,
+    which is exactly the drift the report module exists to prevent, and it was drifting inside
+    the program that reports it.
+    """
+    made = report.collect()
     out = []
-    for name, module in modules.items():
-        summary = module.summarise()
-        out.append({"module": name, "claims": len(summary), **_short(summary)})
+    for name in made.modules:
+        found = {one.key: one.value for one in made.of(name)}
+        out.append({"module": name, "claims": len(found), **_short(found)})
     return out
+
+
+def run_report(_args: argparse.Namespace) -> object:
+    """The collected report, as counts rather than as every finding."""
+    return report.collect().as_dict()
+
+
+def run_timing(_args: argparse.Namespace) -> object:
+    """Every timing setting with what it committed."""
+    return timing.compare_the_settings()
+
+
+def run_partition(_args: argparse.Namespace) -> object:
+    """Every shape of directed network cut."""
+    return partition.compare_the_cuts()
+
+
+def run_quorum(_args: argparse.Namespace) -> object:
+    """Every quorum rule at five nodes, safe and unsafe."""
+    return quorum.compare_the_rules()
+
+
+def run_repair(_args: argparse.Namespace) -> object:
+    """Every log repair strategy over every divergence shape."""
+    return repair.compare_the_strategies()
+
+
+def run_lease(_args: argparse.Namespace) -> object:
+    """Every read strategy under a stranded leader."""
+    return lease.compare_the_strategies()
+
+
+def run_observe(_args: argparse.Namespace) -> object:
+    """What every health signal read under every fault."""
+    return observe.compare_the_scenarios()
+
+
+def run_load(_args: argparse.Namespace) -> object:
+    """The offered load table, bounded and unbounded."""
+    return backpressure.compare_the_bounds()
+
+
+def run_recovery(_args: argparse.Namespace) -> object:
+    """Every restart pattern with what it cost."""
+    return recovery.compare_the_patterns()
+
+
+def run_shard(_args: argparse.Namespace) -> object:
+    """Every group count with what it committed and gave up."""
+    return keyspace.compare_the_group_counts()
+
+
+def run_tune(_args: argparse.Namespace) -> object:
+    """Each objective with the setting it picks."""
+    return tuning.compare_the_weightings()
+
+
+def run_mix(args: argparse.Namespace) -> object:
+    """Every read strategy priced at one read share."""
+    return mix.compare_the_strategies(reads=args.reads)
+
+
+def run_explore(_args: argparse.Namespace) -> object:
+    """Search every ordering against each deliberate defect."""
+    return explore.compare_the_defects()
+
+
+def run_fuzz(_args: argparse.Namespace) -> object:
+    """Draw fault schedules against each deliberate defect."""
+    return fuzz.compare_the_defects()
+
+
+def run_coverage(_args: argparse.Namespace) -> object:
+    """Which transitions each scenario reached."""
+    return coverage.compare_the_scenarios()
 
 
 def _short(summary: dict, keep: int = 3) -> dict:
@@ -190,6 +266,21 @@ COMMANDS = {
     "baseline": (run_baseline, "record or check the workload costs"),
     "invariants": (run_invariants, "check the five safety properties"),
     "measure": (run_measure, "every module's summary"),
+    "report": (run_report, "the collected report, as counts"),
+    "timing": (run_timing, "every timing setting"),
+    "partition": (run_partition, "every shape of network cut"),
+    "quorum": (run_quorum, "every quorum rule at five nodes"),
+    "repair": (run_repair, "every log repair strategy"),
+    "lease": (run_lease, "every read strategy under a stranded leader"),
+    "observe": (run_observe, "what every health signal read"),
+    "load": (run_load, "the offered load table"),
+    "recovery": (run_recovery, "every restart pattern"),
+    "shard": (run_shard, "every group count"),
+    "tune": (run_tune, "each objective and the setting it picks"),
+    "mix": (run_mix, "every read strategy at one read share"),
+    "explore": (run_explore, "search every ordering against each defect"),
+    "fuzz": (run_fuzz, "draw fault schedules against each defect"),
+    "coverage": (run_coverage, "which transitions each scenario reached"),
 }
 
 
@@ -209,6 +300,7 @@ def build_parser() -> argparse.ArgumentParser:
         made.add_argument("--seeds", type=int, default=5, help="how many runs")
         made.add_argument("--loss", type=float, default=0.0, help="link loss rate")
         made.add_argument("--check", action="store_true", help="compare rather than record")
+        made.add_argument("--reads", type=float, default=0.9, help="share of operations")
     return parser
 
 
@@ -338,6 +430,10 @@ def every_command_runs() -> dict:
 
     The check that says the table is not carrying a command nobody has run. A subcommand that
     raised on every invocation would sit in the help text looking implemented.
+
+    The invocation list is compared against the command table rather than written beside it, so
+    a command added without an invocation fails here instead of going unexercised. It caught
+    fifteen of them at once when the table grew.
     """
     invocations = {
         "cluster": ["cluster", "--size", "3", "--writes", "2", "--ticks", "30"],
@@ -349,6 +445,21 @@ def every_command_runs() -> dict:
         "baseline": ["baseline"],
         "invariants": ["invariants", "--size", "3", "--writes", "3", "--ticks", "30"],
         "measure": ["measure"],
+        "report": ["report"],
+        "timing": ["timing"],
+        "partition": ["partition"],
+        "quorum": ["quorum"],
+        "repair": ["repair"],
+        "lease": ["lease"],
+        "observe": ["observe"],
+        "load": ["load"],
+        "recovery": ["recovery"],
+        "shard": ["shard"],
+        "tune": ["tune"],
+        "mix": ["mix", "--reads", "0.5"],
+        "explore": ["explore"],
+        "fuzz": ["fuzz"],
+        "coverage": ["coverage"],
     }
     codes = {name: main(one) for name, one in invocations.items()}
     return {

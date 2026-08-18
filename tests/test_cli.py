@@ -307,3 +307,84 @@ def test_the_success_code_is_zero():
 
 def test_the_refusal_code_is_two():
     assert REFUSED == 2
+
+
+def test_every_new_command_has_a_handler():
+    assert all(callable(one[0]) for one in terminal.COMMANDS.values())
+
+
+def test_the_command_table_has_grown():
+    assert len(terminal.COMMANDS) >= 20
+
+
+def test_the_parser_still_covers_every_command():
+    assert terminal.the_parser_covers_every_command()["they_match"]
+
+
+def test_the_quorum_command_returns_a_table():
+    assert len(terminal.run_quorum(None)) == 25
+
+
+def test_the_timing_command_returns_a_table():
+    assert terminal.run_timing(None)
+
+
+def test_the_partition_command_returns_a_table():
+    assert len(terminal.run_partition(None)) == 7
+
+
+def test_the_repair_command_returns_a_table():
+    assert len(terminal.run_repair(None)) == 16
+
+
+def test_the_lease_command_returns_a_table():
+    assert len(terminal.run_lease(None)) == 4
+
+
+def test_the_observe_command_returns_a_table():
+    assert terminal.run_observe(None)
+
+
+def test_the_load_command_returns_a_table():
+    assert len(terminal.run_load(None)) == 4
+
+
+def test_the_recovery_command_returns_a_table():
+    assert len(terminal.run_recovery(None)) == 5
+
+
+def test_the_shard_command_returns_a_table():
+    assert len(terminal.run_shard(None)) == 4
+
+
+def test_the_tune_command_returns_a_table():
+    assert terminal.run_tune(None)
+
+
+def test_the_mix_command_takes_a_read_share():
+    made = terminal.run_mix(argparse.Namespace(reads=0.5))
+    assert all(one["reads"] == 0.5 for one in made)
+
+
+def test_the_coverage_command_returns_a_table():
+    assert terminal.run_coverage(None)
+
+
+def test_the_report_command_counts_the_findings():
+    assert terminal.run_report(None)["findings"] > 100
+
+
+def test_the_measure_command_covers_every_module():
+    assert len(terminal.run_measure(None)) > 40
+
+
+def test_the_measure_command_names_its_modules():
+    assert all(one["module"] for one in terminal.run_measure(None))
+
+
+def test_a_new_command_runs_end_to_end():
+    assert terminal.main(["quorum"]) == terminal.OK
+
+
+def test_a_new_command_renders_as_json():
+    assert terminal.main(["--json", "quorum"]) == terminal.OK

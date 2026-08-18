@@ -65,6 +65,7 @@ MODULES = (
     "rsm.verify.liveness",
     "rsm.verify.trace",
     "rsm.verify.coverage",
+    "rsm.verify.refine",
     "rsm.eval.workload",
     "rsm.eval.scaling",
     "rsm.eval.regression",

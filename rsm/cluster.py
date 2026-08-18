@@ -226,6 +226,10 @@ class Cluster:
             return []
         return [one.command for one in found.applied if one.command is not None]
 
+    def committed_count(self) -> int:
+        """How many client commands the leader has applied, which is what a caller waits on."""
+        return len(self.committed())
+
     def agreed(self) -> bool:
         """Whether every running node has applied the same prefix."""
         histories = [

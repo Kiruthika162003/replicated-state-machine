@@ -136,7 +136,6 @@ conditions it was measured under. Where that matters, the module says so.
 
 ## Notes
 
-Written by Kiruthika Subramani in collaboration with Claude, Anthropic's AI assistant.
 
 Thirty thousand lines of implementation, tests and examples, not counting docstrings, comments or
 blank lines. Every commit carries the finding that prompted it.

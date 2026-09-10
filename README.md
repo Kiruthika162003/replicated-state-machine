@@ -40,7 +40,7 @@ The rest are one subject each: timing, batching, the wire codec, directed partit
 arithmetic, log repair, leases, observability, backpressure, restarts, rejoining, leader
 priority, sharding, key expiry, watches, rebalancing, the idle floor and charting.
 
-`examples/` holds twenty three runnable scripts, one per idea, which print intermediate state
+`examples/` holds thirty five runnable scripts, one per idea, which print intermediate state
 rather than a verdict because the verdicts are already in the tests.
 
 ## Some of what the measurements found

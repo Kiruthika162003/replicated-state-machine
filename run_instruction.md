@@ -49,14 +49,19 @@ python -m rsm.cli.main cluster
 
 ## Run a worked example
 
-There are 24 runnable examples in `examples/`. Each exposes `run()`, which
-returns the lines it would print, and `main()`, which prints them:
+There are 35 runnable examples in `examples/`. Each exposes `main()`, which prints a
+measured comparison and raises if the number it just measured stopped matching what
+the example claims:
 
 ```bash
 python -c "from examples.break_it_on_purpose import main; main()"
 ```
 
-The full list is `break_it_on_purpose`, `chart_the_sweeps`, `check_a_history`, `choose_a_size`, `common`, `elect_a_leader`, `expire_a_lock`, `find_a_bug`, and others.
+The full list is `break_it_on_purpose`, `chart_the_sweeps`, `check_a_history`,
+`choose_a_size`, `elect_a_leader`, `expire_a_lock`, `find_a_bug`,
+`hand_off_leadership`, `pick_the_spread`, `join_as_a_learner`, `stress_the_network`,
+`a_healthy_looking_lie`, `drop_a_durable_field`, `restart_in_order`,
+`count_the_messages`, `cover_two_shapes`, `check_every_scenario`, and others.
 
 ## Layout
 
@@ -68,7 +73,9 @@ The full list is `break_it_on_purpose`, `chart_the_sweeps`, `check_a_history`, `
 
 ## Notes
 
-The examples are pinned line by line in the test suite, so an example whose
-output drifts fails the build rather than quietly changing. Where a guess about
-behaviour was refuted by measurement, the wrong guess is kept in the source
-beside the measured value rather than deleted.
+Every example is checked to import cleanly, expose `main()`, and explain itself in a
+docstring; a handful of the cheaper ones are also run end to end and checked for
+output. The rest check their own measurement with a `raise SystemExit` at the bottom,
+so running the example is itself the check. Where a guess about behaviour was refuted
+by measurement, the wrong guess is kept in the source beside the measured value rather
+than deleted.
